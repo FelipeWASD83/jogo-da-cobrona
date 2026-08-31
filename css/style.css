@@ -1,0 +1,755 @@
+/* ============================================================================
+   COBRONA :: PROTOCOLO NEON — folha de estilo
+   Synthwave / cyberpunk. Zero dependências, zero webfont, zero imagem externa.
+   Tudo o que brilha aqui é text-shadow, box-shadow e gradiente.
+   ========================================================================== */
+
+/* ---------------------------------------------------------------------------
+   1. VARIÁVEIS
+   --------------------------------------------------------------------------- */
+:root {
+  /* Paleta de §1 do ARCHITECTURE.md — os mesmos hex de CFG.PAL */
+  --void:      #04010c;
+  --deep:      #0b0424;
+  --grid-line: #2a1566;
+  --grid-glow: #4b1fa8;
+  --cyan:      #00f0ff;
+  --magenta:   #ff2d95;
+  --lime:      #7dff4d;
+  --amber:     #ffb800;
+  --violet:    #a855ff;
+  --danger:    #ff2b2b;
+  --white:     #eaf6ff;
+  --dim:       #7a6fa8;
+
+  /* Versões em canal RGB para compor rgba() com alpha variável nas sombras */
+  --cyan-rgb:    0, 240, 255;
+  --magenta-rgb: 255, 45, 149;
+  --violet-rgb:  168, 85, 255;
+  --amber-rgb:   255, 184, 0;
+  --danger-rgb:  255, 43, 43;
+  --lime-rgb:    125, 255, 77;
+
+  --mono: ui-monospace, "JetBrains Mono", "Fira Code", "SF Mono", Consolas, monospace;
+
+  /* --------------------------------------------------------------------
+     --u = 1% da LARGURA REAL do #app.
+     PORQUÊ: o #app é sempre `min(100vw, 150vh)` de largura (3:2 encaixado
+     na viewport). Logo 1% dele é exatamente min(1vw, 1.5vh). Com isso toda
+     a tipografia da UI escala junto com o canvas sem media query nenhuma —
+     o HUD nunca fica gigante numa janelinha nem minúsculo num 4K.
+     No design de referência (960px) 1u = 9.6px.
+     -------------------------------------------------------------------- */
+  --u: min(1vw, 1.5vh);
+
+  --radius: 0.3em;
+}
+
+/* dvw/dvh evitam o "pulo" causado pela barra de endereço móvel que anima */
+@supports (width: 1dvh) {
+  :root { --u: min(1dvw, 1.5dvh); }
+}
+
+/* ---------------------------------------------------------------------------
+   2. RESET MÍNIMO
+   --------------------------------------------------------------------------- */
+*, *::before, *::after { box-sizing: border-box; }
+
+html, body {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #000;
+  color: var(--white);
+  font-family: var(--mono);
+  font-variant-numeric: tabular-nums;   /* números do HUD não "dançam" ao mudar */
+  overflow: hidden;
+  overscroll-behavior: none;
+  -webkit-text-size-adjust: 100%;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: none;                   /* swipe é controle, não rolagem */
+}
+
+h1, h2, p, ul, ol, dl, dd { margin: 0; }
+ul, ol { list-style: none; padding: 0; }
+
+/* ---------------------------------------------------------------------------
+   3. PALCO
+   --------------------------------------------------------------------------- */
+#app {
+  position: relative;
+  overflow: hidden;
+  aspect-ratio: 3 / 2;                  /* 960 x 640 */
+  /* 3:2 => largura = 1.5 * altura. min() escolhe o eixo que aperta primeiro,
+     então a caixa cabe inteira na tela SEM cortar e SEM distorcer. */
+  width: min(100vw, 150vh);
+  max-width: 100vw;
+  max-height: 100vh;
+  background: var(--void);
+  box-shadow:
+    0 0 calc(var(--u) * 6) rgba(var(--violet-rgb), 0.28),
+    0 0 calc(var(--u) * 16) rgba(var(--magenta-rgb), 0.12);
+  isolation: isolate;
+}
+
+@supports (width: 1dvh) {
+  #app {
+    width: min(100dvw, 150dvh);
+    max-width: 100dvw;
+    max-height: 100dvh;
+  }
+}
+
+/* Fallback para navegadores sem aspect-ratio: altura derivada do padding-top.
+   (Mantido curto — só evita um layout quebrado em engines antigas.) */
+@supports not (aspect-ratio: 3 / 2) {
+  #app { height: min(100vh, 66.6666vw); }
+}
+
+#game {
+  display: block;
+  width: 100%;
+  height: 100%;
+  position: relative;
+  z-index: 0;
+  /* O canvas tem resolução interna própria (devicePixelRatio); aqui ele só
+     é esticado para preencher o palco. */
+}
+
+/* ---------------------------------------------------------------------------
+   4. CAMADAS E TELAS
+   --------------------------------------------------------------------------- */
+.layer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;                 /* cliques caem no canvas por padrão */
+}
+
+.screen {
+  display: none;
+  z-index: 5;
+  padding: calc(var(--u) * 4);
+  text-align: center;
+  background:
+    radial-gradient(ellipse at 50% 45%, rgba(11, 4, 36, 0.82) 0%, rgba(4, 1, 12, 0.94) 70%);
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
+}
+
+.screen.on {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: calc(var(--u) * 1.4);
+  pointer-events: auto;                 /* menus voltam a receber toque/clique */
+  /* PORQUÊ sem fade de entrada: qualquer animação/transição que parta de
+     `opacity: 0` deixa a tela PRESA em invisível se o relógio de animação não
+     avançar — compositor suspenso, renderização por software, aba oculta,
+     captura headless. Medido: o menu ficava com `opacity: 0` para sempre.
+     Um fade de 0.22s não vale o risco de um menu invisível, que é falha total
+     do jogo. O estado de repouso agora é opaco e não depende de nada rodar. */
+  opacity: 1;
+}
+
+#hud    { display: none; z-index: 2; }
+#hud.on { display: block; }
+
+#banner    { display: none; z-index: 4; }
+#banner.on {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+/* ---------------------------------------------------------------------------
+   5. HUD
+   --------------------------------------------------------------------------- */
+.hud-left, .hud-right {
+  position: absolute;
+  top: calc(var(--u) * 2.2);
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--u) * 1.1);
+}
+.hud-left  { left:  calc(var(--u) * 2.6); align-items: flex-start; text-align: left; }
+.hud-right { right: calc(var(--u) * 2.6); align-items: flex-end;   text-align: right; }
+
+.stat {
+  display: flex;
+  flex-direction: column;
+  line-height: 1;
+}
+
+.stat .lbl {
+  font-size: calc(var(--u) * 1.05);
+  letter-spacing: calc(var(--u) * 0.24);
+  color: var(--dim);
+  margin-bottom: calc(var(--u) * 0.45);
+  text-transform: uppercase;
+}
+
+.stat > span:not(.lbl) {
+  font-size: calc(var(--u) * 3.2);
+  font-weight: 700;
+  letter-spacing: calc(var(--u) * 0.08);
+  color: var(--white);
+  /* Bloom "de mentira": várias sombras concêntricas do mesmo tom, cada uma
+     mais larga e mais fraca. Sai bem mais barato que qualquer filter: blur. */
+  text-shadow:
+    0 0 calc(var(--u) * 0.35) rgba(var(--cyan-rgb), 0.95),
+    0 0 calc(var(--u) * 1.1)  rgba(var(--cyan-rgb), 0.65),
+    0 0 calc(var(--u) * 2.6)  rgba(var(--cyan-rgb), 0.35),
+    0 0 calc(var(--u) * 5.0)  rgba(var(--violet-rgb), 0.25);
+}
+
+/* RECORDE em âmbar para diferenciar do placar corrente */
+.hud-left .stat:nth-child(2) > span:not(.lbl) {
+  font-size: calc(var(--u) * 2.1);
+  color: var(--amber);
+  text-shadow:
+    0 0 calc(var(--u) * 0.35) rgba(var(--amber-rgb), 0.9),
+    0 0 calc(var(--u) * 1.4)  rgba(var(--amber-rgb), 0.45);
+}
+
+.hud-right .stat > span:not(.lbl) {
+  font-size: calc(var(--u) * 2.1);
+  color: var(--magenta);
+  text-shadow:
+    0 0 calc(var(--u) * 0.35) rgba(var(--magenta-rgb), 0.9),
+    0 0 calc(var(--u) * 1.4)  rgba(var(--magenta-rgb), 0.45);
+}
+
+/* ------------------------- barra de combo -------------------------------- */
+#combo-wrap {
+  position: absolute;
+  top: calc(var(--u) * 2.6);
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: calc(var(--u) * 1);
+  width: calc(var(--u) * 30);
+  height: calc(var(--u) * 1.1);
+  padding: calc(var(--u) * 0.16);
+  border: 1px solid rgba(var(--violet-rgb), 0.45);
+  border-radius: calc(var(--u) * 1);
+  background: rgba(11, 4, 36, 0.55);
+  box-shadow: inset 0 0 calc(var(--u) * 0.8) rgba(0, 0, 0, 0.8);
+}
+
+#combo-bar {
+  height: 100%;
+  width: 0%;                            /* o JS escreve style.width em % */
+  border-radius: calc(var(--u) * 1);
+  background: linear-gradient(90deg, var(--lime) 0%, var(--amber) 55%, var(--magenta) 100%);
+  box-shadow:
+    0 0 calc(var(--u) * 0.6) rgba(var(--lime-rgb), 0.7),
+    0 0 calc(var(--u) * 1.6) rgba(var(--magenta-rgb), 0.4);
+  /* Transição curta: a barra drena a cada frame, então qualquer easing longo
+     faria a barra "atrasar" em relação ao combo real. 80ms só tira o serrilhado. */
+  transition: width 80ms linear;
+}
+
+#combo-mult {
+  position: absolute;
+  left: calc(100% + var(--u) * 1);
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: calc(var(--u) * 1.6);
+  font-weight: 700;
+  letter-spacing: calc(var(--u) * 0.1);
+  color: var(--lime);
+  white-space: nowrap;
+  text-shadow:
+    0 0 calc(var(--u) * 0.4) rgba(var(--lime-rgb), 0.9),
+    0 0 calc(var(--u) * 1.5) rgba(var(--lime-rgb), 0.45);
+}
+
+/* ------------------------- chips de power-up ----------------------------- */
+#powerups {
+  position: absolute;
+  left: 50%;
+  bottom: calc(var(--u) * 2.4);
+  transform: translateX(-50%);
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: calc(var(--u) * 0.9);
+  max-width: 86%;
+}
+
+/* Seletor de filho direto: o ui.js gera os chips dinamicamente e não temos
+   contrato para a classe deles — então qualquer elemento solto vira chip. */
+#powerups > * {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: calc(var(--u) * 0.35);
+  min-width: calc(var(--u) * 9);
+  padding: calc(var(--u) * 0.55) calc(var(--u) * 0.9) calc(var(--u) * 0.5);
+  font-size: calc(var(--u) * 1.15);
+  letter-spacing: calc(var(--u) * 0.14);
+  color: var(--white);
+  background: rgba(11, 4, 36, 0.72);
+  border: 1px solid rgba(var(--violet-rgb), 0.6);
+  border-radius: var(--radius);
+  text-align: center;
+  text-transform: uppercase;
+  box-shadow:
+    0 0 calc(var(--u) * 0.9) rgba(var(--violet-rgb), 0.35),
+    inset 0 0 calc(var(--u) * 1.2) rgba(var(--violet-rgb), 0.18);
+}
+
+/* Barra/anel de tempo restante dentro do chip. Cobrimos os nomes de classe
+   mais prováveis + <i>/<b> soltos, para funcionar com qualquer markup do ui.js. */
+#powerups > * > .bar,
+#powerups > * > .pu-bar,
+#powerups > * > .time,
+#powerups > * > .fill,
+#powerups > * > i,
+#powerups > * > b {
+  display: block;
+  height: calc(var(--u) * 0.36);
+  width: 100%;                          /* o JS sobrescreve com style.width */
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--cyan), var(--violet));
+  box-shadow: 0 0 calc(var(--u) * 0.6) rgba(var(--cyan-rgb), 0.7);
+  transition: width 90ms linear;
+  font-style: normal;
+  font-weight: inherit;
+}
+
+/* Últimos 2s: pisca. Animação só de opacidade = composta na GPU, custo ~zero. */
+.piscando { animation: piscar 0.42s steps(2, end) infinite; }
+
+@keyframes piscar {
+  0%, 49%   { opacity: 1; }
+  50%, 100% { opacity: 0.25; }
+}
+
+/* ---------------------------------------------------------------------------
+   6. BANNER
+   --------------------------------------------------------------------------- */
+#banner-main {
+  font-size: calc(var(--u) * 6.4);
+  font-weight: 700;
+  letter-spacing: calc(var(--u) * 0.5);
+  color: var(--white);
+  text-shadow:
+    0 0 calc(var(--u) * 0.5) rgba(var(--cyan-rgb), 1),
+    0 0 calc(var(--u) * 2)   rgba(var(--cyan-rgb), 0.7),
+    0 0 calc(var(--u) * 5)   rgba(var(--magenta-rgb), 0.45),
+    0 0 calc(var(--u) * 9)   rgba(var(--violet-rgb), 0.3);
+}
+
+#banner-sub {
+  margin-top: calc(var(--u) * 1);
+  font-size: calc(var(--u) * 2);
+  letter-spacing: calc(var(--u) * 0.6);
+  color: var(--dim);
+  text-transform: uppercase;
+}
+
+/* A animação é declarada só com .on para reiniciar toda vez que o banner
+   reaparece (remover/adicionar a classe reinicia o ciclo). */
+#banner.on #banner-main { animation: bannerEntra 0.5s cubic-bezier(0.16, 1, 0.3, 1) both; }
+#banner.on #banner-sub  { animation: bannerEntra 0.5s cubic-bezier(0.16, 1, 0.3, 1) 0.08s both; }
+
+@keyframes bannerEntra {
+  from { opacity: 0; transform: scale(0.72); filter: blur(calc(var(--u) * 0.3)); }
+  60%  { opacity: 1; }
+  to   { opacity: 1; transform: scale(1);    filter: blur(0); }
+}
+
+/* ---------------------------------------------------------------------------
+   7. MENU
+   --------------------------------------------------------------------------- */
+#title {
+  font-size: calc(var(--u) * 11);
+  font-weight: 800;
+  line-height: 0.95;
+  letter-spacing: calc(var(--u) * 1.1);
+  color: var(--white);
+  /* PORQUÊ um único keyframe cuidando de tudo: text-shadow é uma propriedade
+     só — se glow e glitch fossem duas animações separadas, a última venceria
+     e a outra sumiria. Então o pulso e o deslocamento ciano/magenta convivem
+     nos mesmos passos. */
+  animation: tituloNeon 3.6s ease-in-out infinite;
+}
+
+@keyframes tituloNeon {
+  0%, 100% {
+    text-shadow:
+      calc(var(--u) * -0.12) 0 0 rgba(var(--magenta-rgb), 0.55),
+      calc(var(--u) *  0.12) 0 0 rgba(var(--cyan-rgb), 0.55),
+      0 0 calc(var(--u) * 0.6) rgba(var(--cyan-rgb), 0.95),
+      0 0 calc(var(--u) * 2.4) rgba(var(--cyan-rgb), 0.55),
+      0 0 calc(var(--u) * 6)   rgba(var(--violet-rgb), 0.45);
+  }
+  48% {
+    text-shadow:
+      calc(var(--u) * -0.2) 0 0 rgba(var(--magenta-rgb), 0.75),
+      calc(var(--u) *  0.2) 0 0 rgba(var(--cyan-rgb), 0.75),
+      0 0 calc(var(--u) * 0.9) rgba(var(--cyan-rgb), 1),
+      0 0 calc(var(--u) * 3.6) rgba(var(--cyan-rgb), 0.8),
+      0 0 calc(var(--u) * 9)   rgba(var(--magenta-rgb), 0.55);
+  }
+  /* Micro-falhas de sinal: dois quadros com deslocamento exagerado */
+  52% {
+    text-shadow:
+      calc(var(--u) * -0.9) calc(var(--u) * 0.12) 0 rgba(var(--magenta-rgb), 0.9),
+      calc(var(--u) *  0.9) calc(var(--u) * -0.12) 0 rgba(var(--cyan-rgb), 0.9),
+      0 0 calc(var(--u) * 2.4) rgba(var(--cyan-rgb), 0.5);
+  }
+  54% {
+    text-shadow:
+      calc(var(--u) *  0.7) calc(var(--u) * -0.1) 0 rgba(var(--magenta-rgb), 0.9),
+      calc(var(--u) * -0.7) calc(var(--u) * 0.1)  0 rgba(var(--cyan-rgb), 0.9),
+      0 0 calc(var(--u) * 2.4) rgba(var(--cyan-rgb), 0.5);
+  }
+}
+
+#subtitle {
+  font-size: calc(var(--u) * 2);
+  letter-spacing: calc(var(--u) * 0.95);
+  color: var(--dim);
+  text-transform: uppercase;
+  margin-bottom: calc(var(--u) * 1.6);
+}
+
+#modes {
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--u) * 0.9);
+  margin: calc(var(--u) * 0.6) 0 calc(var(--u) * 1.2);
+}
+
+#modes li {
+  position: relative;
+  font-size: calc(var(--u) * 3);
+  font-weight: 700;
+  letter-spacing: calc(var(--u) * 0.4);
+  color: var(--dim);
+  cursor: pointer;
+  padding: calc(var(--u) * 0.2) 0;
+  transition: color 0.14s ease, text-shadow 0.14s ease;
+}
+
+/* O marcador existe em TODOS os itens, apenas invisível: assim o texto não
+   dá um pulo lateral quando a seleção muda. */
+#modes li::before {
+  content: "▶ ";
+  opacity: 0;
+  color: var(--cyan);
+}
+
+#modes li.sel {
+  color: var(--cyan);
+  text-shadow:
+    0 0 calc(var(--u) * 0.4) rgba(var(--cyan-rgb), 1),
+    0 0 calc(var(--u) * 1.8) rgba(var(--cyan-rgb), 0.7),
+    0 0 calc(var(--u) * 4.5) rgba(var(--violet-rgb), 0.45);
+}
+
+#modes li.sel::before {
+  opacity: 1;
+  animation: setaPulsa 1.1s ease-in-out infinite;
+}
+
+@keyframes setaPulsa {
+  0%, 100% { opacity: 1;   transform: translateX(0); }
+  50%      { opacity: 0.5; transform: translateX(calc(var(--u) * -0.25)); }
+}
+
+#menu-best {
+  font-size: calc(var(--u) * 1.8);
+  letter-spacing: calc(var(--u) * 0.3);
+  color: var(--amber);
+  text-shadow: 0 0 calc(var(--u) * 1.2) rgba(var(--amber-rgb), 0.55);
+}
+
+#scorelist {
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--u) * 0.25);
+  font-size: calc(var(--u) * 1.2);
+  color: var(--dim);
+  letter-spacing: calc(var(--u) * 0.1);
+  margin-top: calc(var(--u) * 0.4);
+  min-height: calc(var(--u) * 1.2);
+}
+
+#scorelist li { white-space: pre; }
+#scorelist li:first-child { color: var(--white); }
+
+.hint {
+  margin-top: calc(var(--u) * 1.6);
+  font-size: calc(var(--u) * 1.3);
+  letter-spacing: calc(var(--u) * 0.25);
+  color: var(--dim);
+}
+
+/* ---------------------------------------------------------------------------
+   8. PAUSA
+   --------------------------------------------------------------------------- */
+#screen-pause h2 {
+  font-size: calc(var(--u) * 7);
+  font-weight: 800;
+  letter-spacing: calc(var(--u) * 1.2);
+  color: var(--cyan);
+  text-shadow:
+    0 0 calc(var(--u) * 0.5) rgba(var(--cyan-rgb), 1),
+    0 0 calc(var(--u) * 2.4) rgba(var(--cyan-rgb), 0.6),
+    0 0 calc(var(--u) * 6)   rgba(var(--violet-rgb), 0.4);
+  animation: pausaRespira 2.2s ease-in-out infinite;
+}
+
+@keyframes pausaRespira {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0.62; }
+}
+
+/* ---------------------------------------------------------------------------
+   9. GAME OVER
+   --------------------------------------------------------------------------- */
+#over-title {
+  font-size: calc(var(--u) * 6);
+  font-weight: 800;
+  line-height: 1.05;
+  letter-spacing: calc(var(--u) * 0.55);
+  color: var(--danger);
+  text-shadow:
+    0 0 calc(var(--u) * 0.5) rgba(var(--danger-rgb), 1),
+    0 0 calc(var(--u) * 2.2) rgba(var(--danger-rgb), 0.6),
+    0 0 calc(var(--u) * 6)   rgba(var(--danger-rgb), 0.3);
+  max-width: 92%;
+}
+
+#over-record {
+  font-size: calc(var(--u) * 2.6);
+  font-weight: 700;
+  letter-spacing: calc(var(--u) * 0.55);
+  color: var(--amber);
+  text-shadow:
+    0 0 calc(var(--u) * 0.5) rgba(var(--amber-rgb), 1),
+    0 0 calc(var(--u) * 2.4) rgba(var(--amber-rgb), 0.55);
+  animation: recordePulsa 0.9s ease-in-out infinite;
+}
+
+@keyframes recordePulsa {
+  0%, 100% { opacity: 1;    transform: scale(1); }
+  50%      { opacity: 0.55; transform: scale(1.06); }
+}
+
+/* Quando NÃO for recorde, o ui.js esconde o elemento por classe.
+   Aceitamos os apelidos mais prováveis + o atributo hidden, para não depender
+   de um nome que não está no contrato de §9/§10. */
+#over-record.hide,
+#over-record.off,
+#over-record.oculto,
+#over-record[hidden] { display: none; }
+
+#over-stats {
+  display: grid;
+  grid-template-columns: auto auto;
+  column-gap: calc(var(--u) * 2.2);
+  row-gap: calc(var(--u) * 0.55);
+  align-items: baseline;
+  margin: calc(var(--u) * 1.4) 0 calc(var(--u) * 0.4);
+  font-size: calc(var(--u) * 1.7);
+}
+
+#over-stats dt {
+  justify-self: end;
+  color: var(--dim);
+  font-size: calc(var(--u) * 1.25);
+  letter-spacing: calc(var(--u) * 0.2);
+  text-transform: uppercase;
+}
+
+#over-stats dd {
+  justify-self: start;
+  color: var(--white);
+  font-weight: 700;
+  letter-spacing: calc(var(--u) * 0.08);
+  text-shadow:
+    0 0 calc(var(--u) * 0.4) rgba(var(--cyan-rgb), 0.8),
+    0 0 calc(var(--u) * 1.6) rgba(var(--cyan-rgb), 0.35);
+}
+
+/* ---------------------------------------------------------------------------
+   10. INDICADOR DE MUDO
+   --------------------------------------------------------------------------- */
+#mute-ind {
+  position: absolute;
+  right: calc(var(--u) * 2);
+  bottom: calc(var(--u) * 1.6);
+  z-index: 6;
+  display: none;
+  font-size: calc(var(--u) * 2.2);
+  line-height: 1;
+  opacity: 0.85;
+  pointer-events: none;
+  filter: drop-shadow(0 0 calc(var(--u) * 0.6) rgba(var(--danger-rgb), 0.75));
+}
+
+#mute-ind.on { display: block; }
+
+/* ---------------------------------------------------------------------------
+   11. VINHETA + SCANLINES (CRT)
+   --------------------------------------------------------------------------- */
+/*
+   PORQUÊ em CSS e não no canvas: são duas camadas estáticas de gradiente que o
+   compositor do navegador desenha de graça a cada frame. Fazer o mesmo no canvas
+   custaria dois fillRect de tela cheia por frame — desperdício puro num alvo de
+   60fps. z-index alto para ficar sobre canvas E sobre as telas de UI.
+*/
+#app::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 9;
+  pointer-events: none;
+  background:
+    /* scanlines */
+    repeating-linear-gradient(
+      to bottom,
+      rgba(0, 0, 0, 0.30) 0px,
+      rgba(0, 0, 0, 0.30) 1px,
+      rgba(0, 0, 0, 0.00) 1px,
+      rgba(0, 0, 0, 0.00) 3px
+    ),
+    /* tinta ambiente violeta nas bordas */
+    radial-gradient(
+      ellipse at 50% 50%,
+      rgba(var(--violet-rgb), 0.05) 0%,
+      rgba(var(--violet-rgb), 0.00) 55%
+    ),
+    /* vinheta */
+    radial-gradient(
+      ellipse at 50% 50%,
+      rgba(0, 0, 0, 0) 42%,
+      rgba(0, 0, 0, 0.34) 78%,
+      rgba(0, 0, 0, 0.72) 100%
+    );
+  opacity: 0.9;
+}
+/* Composição normal (sem mix-blend-mode) de propósito: multiply comeria o brilho
+   neon do HUD e inverteria o sentido da tinta violeta. As camadas já são
+   pretas/translúcidas, então alpha simples entrega o mesmo CRT sem esse custo. */
+
+/* ---------------------------------------------------------------------------
+   12. NOSCRIPT
+   --------------------------------------------------------------------------- */
+#noscript-aviso {
+  position: fixed;
+  inset: 0;
+  z-index: 99;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  padding: 2rem;
+  text-align: center;
+  background: var(--void);
+  color: var(--white);
+  font-family: var(--mono);
+}
+
+#noscript-aviso strong {
+  font-size: 1.6rem;
+  letter-spacing: 0.2rem;
+  color: var(--cyan);
+  text-shadow: 0 0 12px rgba(var(--cyan-rgb), 0.8);
+}
+
+#noscript-aviso p {
+  max-width: 34rem;
+  line-height: 1.6;
+  color: var(--dim);
+}
+
+/* ---------------------------------------------------------------------------
+   13. RESPONSIVO
+   --------------------------------------------------------------------------- */
+/* Abaixo de 700px o palco é limitado pela largura (--u ≈ 1vw ≈ 7px), então cada
+   número do HUD já nasce pequeno. Aqui encolhemos ainda mais o que só decora
+   (números gigantes, letter-spacing, largura da barra de combo) para o HUD parar
+   de invadir a arena, e mantemos os rótulos num tamanho ainda legível. */
+@media (max-width: 700px) {
+  .stat .lbl                        { font-size: calc(var(--u) * 1.35); letter-spacing: calc(var(--u) * 0.16); }
+  .stat > span:not(.lbl)            { font-size: calc(var(--u) * 2.6); letter-spacing: 0; }
+  .hud-left .stat:nth-child(2) > span:not(.lbl),
+  .hud-right .stat > span:not(.lbl) { font-size: calc(var(--u) * 1.8); }
+  .hud-left, .hud-right             { gap: calc(var(--u) * 0.8); top: calc(var(--u) * 1.8); }
+  #combo-wrap                       { width: calc(var(--u) * 20); top: calc(var(--u) * 1.8); }
+  #combo-mult                       { font-size: calc(var(--u) * 1.5); }
+  #powerups > *                     { font-size: calc(var(--u) * 1.25); min-width: calc(var(--u) * 8); }
+  #title                            { font-size: calc(var(--u) * 9); letter-spacing: calc(var(--u) * 0.7); }
+  #subtitle                         { font-size: calc(var(--u) * 1.8); letter-spacing: calc(var(--u) * 0.5); }
+  #modes li                         { font-size: calc(var(--u) * 2.6); letter-spacing: calc(var(--u) * 0.25); }
+  #banner-main                      { font-size: calc(var(--u) * 5); letter-spacing: calc(var(--u) * 0.3); }
+  #screen-pause h2                  { font-size: calc(var(--u) * 5.4); }
+  #over-title                       { font-size: calc(var(--u) * 4.6); }
+  #over-stats                       { font-size: calc(var(--u) * 1.5); column-gap: calc(var(--u) * 1.4); }
+  #over-stats dt                    { font-size: calc(var(--u) * 1.15); }
+  .hint                             { font-size: calc(var(--u) * 1.2); }
+  #scorelist                        { font-size: calc(var(--u) * 1.1); }
+}
+
+/* Telas muito baixas (paisagem em celular): o menu não pode transbordar */
+@media (max-height: 420px) {
+  #scorelist { display: none; }
+  #title     { font-size: calc(var(--u) * 9); }
+}
+
+/* ---------------------------------------------------------------------------
+   14. MOVIMENTO REDUZIDO
+   --------------------------------------------------------------------------- */
+/* Desliga tudo que é enfeite. O jogo em si (canvas) segue funcionando —
+   quem cuida do movimento de gameplay é o renderer, não o CSS. */
+@media (prefers-reduced-motion: reduce) {
+  #title,
+  #modes li.sel::before,
+  #screen-pause h2,
+  #over-record,
+  .piscando,
+  #banner.on #banner-main,
+  #banner.on #banner-sub {
+    animation: none !important;
+  }
+
+  #combo-bar,
+  #powerups > * > .bar,
+  #powerups > * > .pu-bar,
+  #powerups > * > .time,
+  #powerups > * > .fill,
+  #powerups > * > i,
+  #powerups > * > b {
+    transition: none !important;
+  }
+
+  /* Sem o keyframe, o título ficaria sem brilho nenhum — devolvemos a versão
+     estática do glow (mesmo visual, sem pulso). */
+  #title {
+    text-shadow:
+      calc(var(--u) * -0.12) 0 0 rgba(var(--magenta-rgb), 0.55),
+      calc(var(--u) *  0.12) 0 0 rgba(var(--cyan-rgb), 0.55),
+      0 0 calc(var(--u) * 0.6) rgba(var(--cyan-rgb), 0.95),
+      0 0 calc(var(--u) * 2.4) rgba(var(--cyan-rgb), 0.55),
+      0 0 calc(var(--u) * 6)   rgba(var(--violet-rgb), 0.45);
+  }
+
+  #modes li.sel::before { opacity: 1; }
+  .piscando             { opacity: 0.6; }
+}

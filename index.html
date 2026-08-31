@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <!-- user-scalable=no: o jogo é controlado por swipe; zoom por pinça atrapalharia o gesto -->
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <meta name="theme-color" content="#04010c">
+  <meta name="color-scheme" content="dark">
+  <meta name="description" content="COBRONA :: PROTOCOLO NEON — um jogo da cobra synthwave em HTML5 Canvas, sem dependências.">
+  <title>COBRONA :: PROTOCOLO NEON</title>
+
+  <!--
+    Favicon embutido como data: URI (SVG de cobrinha neon).
+    PORQUÊ: o jogo roda em file:// e não pode pedir NENHUM recurso externo;
+    um arquivo .ico separado também sujaria a distribuição de arquivo único.
+    O '#' dos hexadecimais vira %23 porque a URI não pode conter fragmento.
+  -->
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%2304010c'/%3E%3Cpath d='M5 24h7v-7h7v-7h6' fill='none' stroke='%2300f0ff' stroke-width='4.5' stroke-linecap='square' stroke-linejoin='miter'/%3E%3Ccircle cx='25.5' cy='10' r='3' fill='%23ff2d95'/%3E%3C/svg%3E">
+
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+  <noscript>
+    <div id="noscript-aviso">
+      <strong>COBRONA :: PROTOCOLO NEON</strong>
+      <p>Este jogo precisa de JavaScript para rodar. Ative o JavaScript no seu navegador e recarregue a página.</p>
+    </div>
+  </noscript>
+
+  <div id="app">
+    <canvas id="game"></canvas>
+
+    <div id="hud" class="layer">
+      <div class="hud-left">
+        <div class="stat"><span class="lbl">PONTOS</span><span id="hud-score">0</span></div>
+        <div class="stat"><span class="lbl">RECORDE</span><span id="hud-best">0</span></div>
+      </div>
+      <div class="hud-right">
+        <div class="stat"><span class="lbl">SETOR</span><span id="hud-sector">01</span></div>
+        <div class="stat"><span class="lbl">TAMANHO</span><span id="hud-len">4</span></div>
+      </div>
+      <div id="combo-wrap"><div id="combo-bar"></div><span id="combo-mult">x1</span></div>
+      <div id="powerups"></div>
+    </div>
+
+    <div id="banner" class="layer"><div id="banner-main"></div><div id="banner-sub"></div></div>
+
+    <div id="screen-menu" class="layer screen">
+      <h1 id="title">COBRONA</h1>
+      <p id="subtitle">:: PROTOCOLO NEON ::</p>
+      <ul id="modes">
+        <li data-mode="classico" class="sel">CLÁSSICO</li>
+        <li data-mode="caos">CAÔS</li>
+        <li data-mode="zen">ZEN</li>
+      </ul>
+      <p id="menu-best">RECORDE: 0</p>
+      <ol id="scorelist"></ol>
+      <p class="hint">↑↓ escolhe · ESPAÇO começa · M muta</p>
+    </div>
+
+    <div id="screen-pause" class="layer screen">
+      <h2>PAUSADO</h2><p class="hint">ESPAÇO continua · ESC sai</p>
+    </div>
+
+    <div id="screen-over" class="layer screen">
+      <h2 id="over-title">VOCÊ VIROU CONCRETO</h2>
+      <p id="over-record">NOVO RECORDE!</p>
+      <dl id="over-stats"></dl>
+      <p class="hint">ENTER joga de novo · ESC menu</p>
+    </div>
+
+    <div id="mute-ind">🔇</div>
+  </div>
+
+  <!--
+    Scripts clássicos, no fim do <body>, SEM defer e SEM type="module".
+    PORQUÊ: file:// não permite módulos ES, e a ordem abaixo (§8 do ARCHITECTURE.md)
+    é contrato — scripts síncronos no fim do body executam exatamente nesta sequência
+    e já encontram o DOM pronto.
+  -->
+  <script src="js/core/util.js"></script>
+  <script src="js/game/config.js"></script>
+  <script src="js/core/audio.js"></script>
+  <script src="js/core/input.js"></script>
+  <script src="js/core/fx.js"></script>
+  <script src="js/game/arena.js"></script>
+  <script src="js/game/entities.js"></script>
+  <script src="js/game/game.js"></script>
+  <script src="js/render/background.js"></script>
+  <script src="js/render/renderer.js"></script>
+  <script src="js/ui/ui.js"></script>
+  <script src="js/main.js"></script>
+</body>
+</html>
