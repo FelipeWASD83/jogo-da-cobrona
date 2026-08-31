@@ -45,3 +45,13 @@ Thumbs.db
 desktop.ini
 *.log
 .vscode/
+
+# --- ajustes 31/08/2026 ---
+# config pessoal do Claude Code: aprovacoes suas, nao do projeto
+.claude/settings.local.json
+# segredo
+.env
+.env.*
+!.env.example
+# material bruto de cliente: pesado e insubstituivel
+_originais/
