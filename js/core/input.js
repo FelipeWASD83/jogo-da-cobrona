@@ -31,7 +31,12 @@
   /* ------------------------------------------------------------------
      Constantes locais de toque/gamepad (§7)
      ------------------------------------------------------------------ */
-  var SWIPE_MIN   = 24;   // px para um arrasto virar swipe
+  // Fila e limiar do swipe vêm de CFG.INPUT_QUEUE_MAX e CFG.SWIPE_THRESHOLD,
+  // lidos a cada uso (ver queueMax/swipeMin). Estes dois números são só a
+  // reserva para o caso de o CFG não ter carregado, e têm que ser iguais aos
+  // do config.js.
+  var QUEUE_MAX_FALLBACK = 2;   // direções na fila
+  var SWIPE_MIN_FALLBACK = 24;  // px para um arrasto virar swipe
   var TAP_MAX_PX  = 12;   // px máximos de deslocamento para contar como tap
   var TAP_MAX_MS  = 300;  // duração máxima do tap
   var PAD_DEAD    = 0.5;  // zona morta do analógico esquerdo
@@ -77,10 +82,20 @@
     return !!(window.COBRA.CFG && window.COBRA.CFG.DEBUG);
   }
 
+  function queueMax() {
+    var C = window.COBRA.CFG;
+    return (C && C.INPUT_QUEUE_MAX >= 1) ? (C.INPUT_QUEUE_MAX | 0) : QUEUE_MAX_FALLBACK;
+  }
+
+  function swipeMin() {
+    var C = window.COBRA.CFG;
+    return (C && C.SWIPE_THRESHOLD > 0) ? C.SWIPE_THRESHOLD : SWIPE_MIN_FALLBACK;
+  }
+
   /* ------------------------------------------------------------------
      Estado do módulo
      ------------------------------------------------------------------ */
-  var queue   = [];     // até 2 direções canônicas
+  var queue   = [];     // até CFG.INPUT_QUEUE_MAX (2) direções canônicas
   var refDir  = null;   // direção de referência p/ o filtro de inversa
   var down    = {};     // teclas fisicamente pressionadas (limpo no blur)
   var target  = null;   // elemento que recebe o toque
@@ -115,7 +130,7 @@
       if (d === ref) return false;         // repetida: não ocupa espaço na fila
       if (opposite(d, ref)) return false;  // inversa: descartada na ENTRADA
     }
-    if (queue.length >= 2) return false;   // limite duro de 2
+    if (queue.length >= queueMax()) return false;   // limite duro (CFG, hoje 2)
 
     queue.push(d);
     return true;
@@ -274,7 +289,8 @@
 
     var dx = t.clientX - tX;
     var dy = t.clientY - tY;
-    if (Math.abs(dx) < SWIPE_MIN && Math.abs(dy) < SWIPE_MIN) return;
+    var lim = swipeMin();
+    if (Math.abs(dx) < lim && Math.abs(dy) < lim) return;
 
     var D = dirs();
     // Eixo dominante vence: diagonais viram o movimento mais óbvio.

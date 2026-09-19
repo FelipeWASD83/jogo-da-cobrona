@@ -3,6 +3,9 @@
 > Este documento é **normativo**. Todo implementador deve segui-lo à risca.
 > Nomes de arquivos, nomes de funções, assinaturas, IDs de DOM e nomes de campos
 > definidos aqui são **contrato**. Não invente nomes alternativos. Não renomeie.
+>
+> Revisado em 19/09/2026 para bater com o código (ver `CLAUDE.md`, seção 7).
+> Onde este doc e o código divergirem, o código é o que roda.
 
 ---
 
@@ -16,9 +19,9 @@
 - Todo áudio é **sintetizado** com Web Audio API. Todo gráfico é **Canvas 2D** ou CSS.
 - `localStorage` **pode lançar exceção** em `file://` (Chrome bloqueia). **Sempre** dentro de
   `try/catch` com fallback em memória. Ver `Util.store`.
-- Alvo: **60fps** em notebook Linux modesto no Firefox.
+- Alvo: **60fps** em notebook modesto (o alvo original era Linux/Firefox; hoje o jogo roda num PC com Windows 11).
 - Todo texto visível ao jogador em **português brasileiro**.
-- Sem `console.log` no código final (exceto atrás de `CFG.DEBUG`).
+- Sem `console.log` no código final (exceto atrás de `CFG.DEBUG`). Única exceção: o `console.error` do erro fatal em `main.js`.
 
 ---
 
@@ -59,8 +62,11 @@ saturação 100%, luminosidade 55%. Cabeça sempre `cyan` puro com brilho maior.
 - Cobra inicial: 4 segmentos, centro da arena, direção `RIGHT`.
 - Morte: colisão com parede da borda, com muro interno, com o próprio corpo, ou com um Caçador.
   - Exceção: `FANTASMA` ativo → atravessa corpo e faz *wrap* nas bordas.
-  - Exceção: `ESCUDO` ativo → consome o escudo, empurra a cabeça de volta 1 célula, i-frames de 800ms.
-  - Exceção: modo `ZEN` → nunca morre; perde 3 segmentos + i-frames de 1000ms.
+  - Exceção: `ESCUDO` ativo → consome o escudo, **rebobina a cobra inteira um tick** (cada
+    segmento volta à posição do tick anterior — empurrar só a cabeça duplicava segmento),
+    i-frames de 800ms. Colisão durante os i-frames também rebobina, de graça.
+  - Exceção: modo `ZEN` → nunca morre; rebobina, perde até 3 segmentos (nunca abaixo de
+    `CFG.MIN_LEN` = 3) + i-frames de 1000ms.
 
 ### MOVIMENTO INTERPOLADO (assinatura do jogo — obrigatório)
 
@@ -73,7 +79,7 @@ naquele tick (desenhar direto na posição nova), senão a cobra "voa" pela tela
 
 ### BUFFER DE INPUT
 
-`Input` mantém uma fila de até **2** direções. O `Game` consome **uma por tick**.
+`Input` mantém uma fila de até **2** direções (`CFG.INPUT_QUEUE_MAX`). O `Game` consome **uma por tick**.
 Uma direção que seja o inverso exato da direção atual é **descartada na entrada da fila**
 (comparada contra a última direção da fila, não contra a direção atual). Isso elimina
 a morte clássica por "virei duas vezes rápido demais".
@@ -106,14 +112,21 @@ Spawn nunca sobre a cobra, muro, portal ou caçador. Se não houver célula livr
 | `magnet` | `ÍMÃ` | 10000 ms | comida anda 1 célula na direção da cabeça a cada 2 ticks se dist ≤ 6 |
 | `slow` | `TEMPO LENTO` | 6000 ms | `tickMs × 1.8`, pontos × 2 |
 | `shield` | `ESCUDO` | até 1 hit | sobrevive a uma colisão |
-| `fury` | `FÚRIA` | 7000 ms | `tickMs × 0.6`, pontos × 3, destrói muros e caçadores no caminho |
+| `fury` | `FÚRIA` | 7000 ms | `tickMs × 0.6`, pontos × 3, destrói muros (+25 pts cada, `FURY_WALL_PTS` em `game.js`) e caçadores (+100) no caminho |
 
-Múltiplos power-ups podem estar ativos ao mesmo tempo. Nos últimos 2000 ms o ícone pisca.
+Múltiplos power-ups podem estar ativos ao mesmo tempo. Pegar um que já está ativo **repõe** a
+duração (não soma). Nos últimos 2000 ms o chip do HUD pisca (o chip mostra o nome; o campo
+`icone` do CFG não é usado).
 
 ### 3.4 Setores (progressão de arena)
-A cada **500** pontos sobe um setor. Transição: hitstop 120ms, flash, texto grande, som,
+A cada **500** pontos sobe um setor. Transição: hitstop, flash, texto grande, som,
 paleta de grid muda, arena é reconstruída (a cobra **nunca** é morta pela reconstrução —
-células ocupadas pela cobra jamais viram muro).
+células ocupadas pela cobra e as 3 à frente da cabeça jamais viram muro, e a arena garante
+6 células de fuga a partir delas).
+
+A cor da grade por setor vem da tabela `SECTOR_HUE` de `js/render/background.js` (6 matizes;
+do SETOR 06 em diante é sempre a última), não do CFG. O subtítulo do banner descreve a arena
+que o jogador vai receber **no modo atual** (no ZEN: `ARENA LIMPA`).
 
 | setor | pontos | nome | novidade |
 |---|---|---|---|
@@ -122,24 +135,30 @@ células ocupadas pela cobra jamais viram muro).
 | 2 | 1000 | `SETOR 03 :: CAÇADA` | + 1 Caçador |
 | 3 | 1500 | `SETOR 04 :: DOBRA` | + portais |
 | 4 | 2000 | `SETOR 05 :: SOBRECARGA` | + 2º Caçador, grid pulsa |
-| 5+ | 2500+ | `SETOR 0N :: CAOS` | +1 Caçador a cada setor (cap 5), muros densos |
+| 5 | 2500 | `SETOR 06 :: CAOS` | 3 Caçadores, muros densos |
+| 6+ | 3000+ | `SETOR NN :: CAOS` (gerado por `sectorInfo`) | +1 Caçador a cada setor (cap 5), muros mais densos (cap 12%) |
 
 ### 3.5 Caçador
 Drone hostil de 1 célula. Move a cada **2 ticks** (a cada 3 ticks se `slow` ativo).
 Passo: escolhe entre os 4 vizinhos o que minimiza a distância de Manhattan até a cabeça,
 ignorando células de muro; empata → mantém direção anterior. Nunca entra em portal.
-Nasce sempre a ≥ 10 células da cabeça, com animação de materialização de 1200 ms
-(**intangível** durante ela, pisca em vermelho).
+Nasce a ≥ 10 células da cabeça; se a arena não tiver célula livre tão longe, tenta ≥ 5 e,
+em último caso, qualquer célula livre (o setor prometeu o caçador). Materialização de 1200 ms
+(**intangível** durante ela, pisca em vermelho), contada no tempo de jogo.
 Colisão com a cabeça = morte. `FÚRIA` o destrói em contato (explosão + 100 pts).
 
 ### 3.6 Portais
-2 pares. Entrar em um sai no par. Cooldown de 2 ticks por portal para não fazer loop.
-Cor `violet`, com anel girando.
+2 pares (menos, se a arena não tiver espaço). Entrar em um sai no par. As pontas de um par
+ficam a ≥ 8 células. Existe cooldown de 2 ticks por portal (`Snake._portalCool`), mas na
+prática ele nunca dispara: a cobra não dá ré e as pontas ficam longe, então ninguém reentra
+num portal em menos de 2 ticks. Cor `CFG.PORTAL.COR` (violet), com anel girando.
 
 ### 3.7 Modos
 - `classico` — progressão normal descrita acima.
-- `caos` — começa direto no setor 3, tick base 105ms, 2 Caçadores, tudo liberado. Pontos × 1.5.
-- `zen` — sem morte, sem caçadores, sem muros. Colidir custa 3 segmentos. Para relaxar.
+- `caos` — começa direto no setor de **índice** 3 (na tela: `SETOR 04 :: DOBRA`), tick base
+  105ms, no mínimo 2 Caçadores, tudo liberado. Pontos × 1.5. Só sobe de setor com 2000 pontos.
+- `zen` — sem morte, sem caçadores, sem muros, sem portais (em qualquer setor). Colidir custa
+  até 3 segmentos. O setor continua subindo (muda a cor e a música). Para relaxar.
 
 ---
 
@@ -154,13 +173,14 @@ Cor `violet`, com anel girando.
 | trocar de setor | 140 ms | 14 | 80 partículas | 0.25 | `sector()` | banner grande 1800 ms |
 | escudo quebra | 160 ms | 16 | 60 ciano | 0.30 | `shield()` | aberração cromática 400 ms |
 | caçador destruído | 80 ms | 10 | 50 vermelhas | 0.12 | `kill()` | `+100` |
-| morte | 260 ms | 24 | corpo explode segmento a segmento (delay 18ms por segmento) | 0.5 vermelho | `death()` | slow-motion (timeScale 0.25 → 1 em 900ms), aberração 800ms |
+| morte | 260 ms | 24 | corpo explode segmento a segmento (delay 18ms por segmento, por acumulador em `game.js`; o `FX.burstDelay` existe mas não é usado) | 0.5 vermelho | `death()` | slow-motion (timeScale 0.25 → 1 em 900ms), aberração 800ms |
 
 - **Onda de engolida:** ao comer, um pulso viaja da cabeça até a cauda. Segmento `i` escala
   `1 + 0.45 * max(0, 1 - |wavePos - i| / 2)`. Velocidade: 22 segmentos/s. Some ao chegar na cauda.
 - **Rastro da cabeça:** últimas 8 posições da cabeça desenhadas aditivamente com alpha decrescente.
 - **Trauma-based shake:** `trauma` 0..1, decai `trauma -= dt*1.6`, deslocamento `= trauma² * 14px`
-  com ruído. `FX.shake(n)` faz `trauma = min(1, trauma + n/25)`.
+  com ruído. `FX.shake(n)` faz `trauma = min(1, trauma + n/25)`. Os três números vêm de `CFG.SHAKE`.
+- **Flash:** some em 180 ms (`CFG.FLASH_FADE_MS`).
 - **Limite duro: 900 partículas.** Ao estourar, as mais velhas são recicladas. Pool pré-alocado.
 
 ---
@@ -213,7 +233,13 @@ Camadas ligadas por `intensity` (0..3, derivada do setor):
   - `perfeito` → `VOCÊ COMEU A REDE INTEIRA`
   Stats: `PONTOS`, `TAMANHO MÁXIMO`, `COMBO MÁXIMO`, `SETOR ALCANÇADO`, `TEMPO`.
   `NOVO RECORDE!` pulsando quando aplicável. Rodapé: `ENTER joga de novo · ESC menu`.
-- **Recordes:** top 5 em `localStorage` (chave `cobrona.recordes.v1`), com modo e data.
+- **Recordes:** top 5 em `localStorage` (chave `cobrona.recordes.v1`), cada registro
+  `{pontos, modo, modoId, data, ts}` — `modo` é o nome formatado, `modoId` o id do CFG, que é
+  o que a lista do menu usa. Quem grava é só o `saveRecord()` do `game.js`.
+- **Outras chaves:** `cobrona.recorde.v1` (melhor pontuação), `cobrona.mudo.v1` (mudo),
+  `cobrona.modo.v1` (último modo escolhido).
+- O `RECORDE` do HUD mostra `Game.best`, que só muda no fim da partida — durante o jogo ele
+  não acompanha a pontuação ao vivo (escolha de design, não bug).
 
 ---
 
@@ -223,12 +249,13 @@ Camadas ligadas por `intensity` (0..3, derivada do setor):
 |---|---|
 | `←↑→↓` / `WASD` | direção |
 | `Espaço` | começar / pausar / continuar |
-| `Enter` | reiniciar (no game over) |
+| `Enter` | começar (no menu) / reiniciar (no game over) |
 | `Esc` | voltar ao menu |
 | `M` | mudo |
 | `P` | pausar |
-| toque: swipe | direção (limiar 24px) |
+| toque: swipe | direção (limiar 24px, `CFG.SWIPE_THRESHOLD`) |
 | toque: tap | começar / continuar |
+| gamepad | direcional/analógico: direção · A: começar · B: menu · Start: pausar |
 
 ---
 
@@ -321,7 +348,8 @@ Input.pressed(action)           // one-shot: 'start','pause','restart','menu','m
 Input.endFrame()                // limpa os one-shots — main.js chama no fim de cada frame
 Input.clearQueue()
 ```
-`preventDefault` nas setas e no espaço para a página não rolar.
+`preventDefault` nas setas, no espaço e em WASD/P/M para a página não rolar. O tamanho da fila
+e o limiar do swipe são lidos de `CFG.INPUT_QUEUE_MAX` e `CFG.SWIPE_THRESHOLD` a cada uso.
 
 ### 9.5 `COBRA.FX`
 ```js
@@ -340,7 +368,10 @@ FX.shakeOffset()                // -> {x,y}
 FX.drawWorld(ctx)               // partículas e anéis, em coordenadas de mundo
 FX.drawOverlay(ctx, w, h)       // flash, textos flutuantes, vinheta de chroma
 FX.count()                      // nº de partículas vivas (debug)
+FX.burstDelay(x, y, opts, ms)   // extra: burst agendado (existe, não é usado pelo Game)
+FX.trail(x, y, color)           // extra: faísca de rastro
 ```
+Tamanho dos pools: `CFG.MAX_PARTICLES` (900), `CFG.MAX_RINGS` (48), `CFG.MAX_TEXTS` (32).
 Coordenadas de `burst`/`ring`/`floatText` são em **pixels de mundo** (célula × 32 + 16).
 
 ### 9.6 `COBRA.Arena`
@@ -421,7 +452,7 @@ Renderer.resize()          // devicePixelRatio + letterbox via CSS
 Renderer.render(game, dt)  // desenha o frame inteiro
 ```
 **Obrigatório por performance:** pré-renderizar sprites em canvas offscreen no `init()`
-(corpo por matiz — 36 matizes, cabeça, comidas, muro, caçador, portal, scanlines, vinheta)
+(corpo por matiz — 36 matizes, `CFG.SNAKE.HUE_SPRITES`, cabeça, comidas, muro, caçador, portal, scanlines, vinheta)
 e desenhar com `drawImage`. **Proibido** usar `ctx.shadowBlur` dentro do loop de render por
 segmento — só na geração dos sprites. Brilho no loop = `globalCompositeOperation = 'lighter'`.
 
@@ -515,8 +546,13 @@ function frame(now) {
   requestAnimationFrame(frame);
 }
 ```
-`dt` é clampado em 50ms para a aba em segundo plano não teleportar a cobra.
-`main.js` também trata as transições de estado globais lendo `Input.pressed(...)`.
+`dt` é clampado em 50ms (`CFG.DT_MAX`) para a aba em segundo plano não teleportar a cobra.
+
+O `main.js` real difere do esboço acima em três pontos: lê o input (`processarInput`) **antes**
+de tudo, tirando um retrato do estado para o mesmo ESPAÇO não começar e pausar no mesmo frame;
+passa o `dt` **real** (sem slow-motion) para o Renderer e a UI; e embrulha o frame em
+`try/catch` — o primeiro erro para o loop e mostra "FALHA NO PROTOCOLO" na tela. Perder o foco
+ou esconder a aba pausa a partida.
 
 ---
 

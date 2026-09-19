@@ -333,13 +333,16 @@
 
   var SFX = {};
 
-  /** Comer: triangle com pitch subindo 1 semitom por nível de combo (cap 18),
+  /** Comer: triangle com pitch subindo 1 semitom por nível de combo (teto em
+      CFG.COMBO_SEMITONE_CAP, 18),
       mais um "click" de square uma oitava acima que dá a percussividade. */
   SFX.eat = function (combo) {
     try {
       if (!live()) return;
       var t = ctx.currentTime;
-      var n = Math.min(Math.max(combo | 0, 0), 18);
+      if (!CFG) CFG = window.COBRA.CFG || null;
+      var cap = (CFG && CFG.COMBO_SEMITONE_CAP >= 0) ? CFG.COMBO_SEMITONE_CAP : 18;
+      var n = Math.min(Math.max(combo | 0, 0), cap);
       var f = 440 * Math.pow(2, n / 12);
 
       var o = osc('triangle', f, t);

@@ -22,6 +22,8 @@
 
   CFG.DEBUG = false;                       // único portão permitido para console.log
   CFG.VERSION = '1.0.0';
+  // NÃO USADOS pelo código: o título e o subtítulo que aparecem no menu estão
+  // escritos no index.html. Ficam aqui só como referência.
   CFG.TITLE = 'COBRONA';
   CFG.SUBTITLE = ':: PROTOCOLO NEON ::';
 
@@ -81,15 +83,15 @@
     HUE_HEAD: 185,
     HUE_STEP: 1.6,
     HUE_MIN: -60,                          // clamp: 185 - 1.6*i satura aqui (~i 153)
-    SAT: 100,
-    LIGHT: 55,
-    HEAD_LIGHT: 65,
-    HUE_SPRITES: 36,                       // nº de sprites pré-renderizados por matiz
+    SAT: 100,                              // SAT e LIGHT: cor da explosão da morte (game.js).
+    LIGHT: 55,                             // A luminosidade dos SPRITES do corpo e da cabeça
+                                           // fica em renderer.js (bakeSprites/bakeHead).
+    HUE_SPRITES: 36,                       // nº de sprites pré-renderizados por matiz (renderer.js)
     TRAIL_LEN: 8,                          // rastro da cabeça (§4)
     TRAIL_MS: 16,                          // intervalo de amostragem do rastro em ms.
                                            // Por TEMPO e não por frame: senão o
                                            // rastro encolhe num monitor de 144Hz.
-    TRAIL_ALPHA: 0.45                      // alpha do 1º rastro, decresce até 0
+    TRAIL_ALPHA: 0.45                      // alpha do 1º rastro, decresce até 0 (renderer.js)
   };
 
   /* ======================================================================
@@ -99,7 +101,7 @@
   CFG.COMBO_MS = 2500;                     // janela para encadear
   CFG.COMBO_MAX_MULT = 8;                  // teto do multiplicador
   CFG.COMBO_STEP = 0.5;                    // mult = 1 + combo*0.5
-  CFG.COMBO_SEMITONE_CAP = 18;             // teto do pitch do som de comer
+  CFG.COMBO_SEMITONE_CAP = 18;             // teto do pitch do som de comer (audio.js)
 
   /** mult = min(8, 1 + combo*0.5). */
   CFG.multFor = function (combo) {
@@ -136,6 +138,7 @@
      6. POWER-UPS (§3.3)
      ====================================================================== */
 
+  // `icone` NÃO É USADO: o chip de power-up do HUD mostra só o nome.
   CFG.POWER = {
     ghost:  { ms: 8000,  nome: 'FANTASMA',    icone: '👻', cor: CFG.PAL.cyan,
               desc: 'atravessa o corpo e as bordas' },
@@ -166,13 +169,18 @@
   CFG.SECTOR_PTS = 500;                    // pontos por setor
   CFG.SECTOR_BANNER_MS = 1800;
 
+  // A cor da grade de cada setor NÃO mora aqui: vem da tabela SECTOR_HUE de
+  // js/render/background.js (6 matizes; do SETOR 06 em diante é sempre a
+  // última). Os campos gridLine/gridGlow/pulsa que existiam aqui nunca foram
+  // lidos e tinham cores diferentes das da tela — removidos em 19/09/2026.
+  // O pulso da grade segue a intensidade musical (intensityFor).
   CFG.SECTORS = [
-    { nome: 'SETOR 01 :: BOOT',        pontos: 0,    muros: false, densidade: 0,    cacadores: 0, portais: false, pulsa: false, gridLine: '#2a1566', gridGlow: '#4b1fa8' },
-    { nome: 'SETOR 02 :: FIREWALL',    pontos: 500,  muros: true,  densidade: 0.03, cacadores: 0, portais: false, pulsa: false, gridLine: '#153a66', gridGlow: '#1f7ba8' },
-    { nome: 'SETOR 03 :: CAÇADA',      pontos: 1000, muros: true,  densidade: 0.04, cacadores: 1, portais: false, pulsa: false, gridLine: '#5c1550', gridGlow: '#a81f80' },
-    { nome: 'SETOR 04 :: DOBRA',       pontos: 1500, muros: true,  densidade: 0.05, cacadores: 1, portais: true,  pulsa: false, gridLine: '#3d1566', gridGlow: '#7a1fa8' },
-    { nome: 'SETOR 05 :: SOBRECARGA',  pontos: 2000, muros: true,  densidade: 0.06, cacadores: 2, portais: true,  pulsa: true,  gridLine: '#664015', gridGlow: '#a8701f' },
-    { nome: 'SETOR 06 :: CAOS',        pontos: 2500, muros: true,  densidade: 0.07, cacadores: 3, portais: true,  pulsa: true,  gridLine: '#661520', gridGlow: '#a81f2f' }
+    { nome: 'SETOR 01 :: BOOT',        pontos: 0,    muros: false, densidade: 0,    cacadores: 0, portais: false },
+    { nome: 'SETOR 02 :: FIREWALL',    pontos: 500,  muros: true,  densidade: 0.03, cacadores: 0, portais: false },
+    { nome: 'SETOR 03 :: CAÇADA',      pontos: 1000, muros: true,  densidade: 0.04, cacadores: 1, portais: false },
+    { nome: 'SETOR 04 :: DOBRA',       pontos: 1500, muros: true,  densidade: 0.05, cacadores: 1, portais: true },
+    { nome: 'SETOR 05 :: SOBRECARGA',  pontos: 2000, muros: true,  densidade: 0.06, cacadores: 2, portais: true },
+    { nome: 'SETOR 06 :: CAOS',        pontos: 2500, muros: true,  densidade: 0.07, cacadores: 3, portais: true }
   ];
 
   CFG.SECTOR_HUNTER_CAP = 5;               // cap de caçadores simultâneos (§3.4)
@@ -201,10 +209,6 @@
     var last = CFG.SECTORS[CFG.SECTORS.length - 1];
     var num = Util ? Util.pad2(i + 1) : (i + 1);
 
-    // Matiz do grid gira 47° por setor: número primo-ish evita repetir a
-    // mesma cor de setor em setor e mantém o CAOS visualmente sempre novo.
-    var hue = (300 + i * 47) % 360;
-
     var info = {
       nome: 'SETOR ' + num + ' :: CAOS',
       pontos: i * CFG.SECTOR_PTS,
@@ -212,9 +216,6 @@
       densidade: Math.min(CFG.SECTOR_DENSITY_CAP, last.densidade + extra * CFG.SECTOR_DENSITY_STEP),
       cacadores: Math.min(CFG.SECTOR_HUNTER_CAP, last.cacadores + extra),
       portais: true,
-      pulsa: true,
-      gridLine: 'hsl(' + hue + ',65%,24%)',
-      gridGlow: 'hsl(' + hue + ',75%,42%)',
       gerado: true
     };
     genCache[i] = info;
@@ -247,7 +248,7 @@
   CFG.PORTAL = {
     PAIRS: 2,
     COOLDOWN_TICKS: 2,                     // evita loop infinito entre as pontas
-    COR: CFG.PAL.violet,
+    COR: CFG.PAL.violet,                   // cor do portal (renderer.js)
     RING_SPEED: 1.6,                       // rad/s do anel girando
     MARGIN: 2                              // não nascem colados na borda
   };
@@ -257,17 +258,20 @@
      ====================================================================== */
 
   CFG.SHIELD_IFRAMES_MS = 800;             // após quebrar o escudo
-  CFG.SHIELD_PUSHBACK = 1;                 // células que a cabeça recua
+  // Não existe "recuo em células": a colisão salva (escudo, ZEN, i-frames)
+  // rebobina a cobra INTEIRA um tick (game.js, rewind). O antigo
+  // SHIELD_PUSHBACK nunca foi lido e foi removido em 19/09/2026.
   CFG.ZEN_IFRAMES_MS = 1000;
   CFG.ZEN_PENALTY = 3;                     // segmentos perdidos ao colidir no ZEN
   CFG.MIN_LEN = 3;                         // a cobra nunca encolhe abaixo disso
                                            // (piso visual: 2 vira um ponto na tela)
 
+  // A aberração cromática da morte é JUICE.death.chroma (o DEATH.CHROMA_MS que
+  // existia aqui repetia o valor e nunca foi lido; removido em 19/09/2026).
   CFG.DEATH = {
     SEG_DELAY_MS: 18,                      // atraso da explosão por segmento
     SLOWMO_FROM: 0.25,                     // timeScale inicial
     SLOWMO_MS: 900,                        // tempo até voltar a 1
-    CHROMA_MS: 800,
     ANIM_MS: 1400                          // duração total de Game.deathAnim (0..1)
   };
 
@@ -328,7 +332,7 @@
     }
   };
 
-  CFG.MODE_IDS = ['classico', 'caos', 'zen'];
+  CFG.MODE_IDS = ['classico', 'caos', 'zen'];   // referência: o jogo não lê (o menu está no index.html)
   CFG.DEFAULT_MODE = 'classico';
 
   /* ======================================================================
@@ -336,11 +340,13 @@
      Tabela evento -> feedback. FX/Game leem daqui em vez de repetir números.
      ====================================================================== */
 
+  // Tamanho dos pools do FX (js/core/fx.js), alocados uma vez no primeiro uso.
   CFG.MAX_PARTICLES = 900;                 // limite duro; pool pré-alocado, recicla os mais velhos
-  CFG.MAX_RINGS = 48;
-  CFG.MAX_TEXTS = 24;
+  CFG.MAX_RINGS = 48;                      // anéis de choque simultâneos
+  CFG.MAX_TEXTS = 32;                      // textos flutuantes simultâneos (estava 24 aqui, mas
+                                           // o FX sempre usou 32: o config passou a dizer a verdade)
 
-  CFG.SHAKE = {
+  CFG.SHAKE = {                            // lido por FX.shake e FX.update
     DECAY: 1.6,                            // trauma -= dt*1.6 (em segundos)
     MAX_PX: 14,                            // deslocamento = trauma² * 14px
     DIVISOR: 25                            // FX.shake(n): trauma += n/25
@@ -365,12 +371,8 @@
     WIDTH: 2
   };
 
-  /* Duração do fade do flash de tela, consumido por FX (js/core/fx.js).
-     ATENÇÃO: este número precisa bater com o comportamento real do FX. Ele
-     ficou em 220 enquanto o FX decaía em 180ms — o config mentia, e quem
-     mexesse aqui não via efeito nenhum. O valor de 180ms é o que foi jogado
-     e ajustado na tela, então é ele que vira a verdade; o FX lê daqui e só
-     usa 180 como fallback se o CFG não tiver carregado. */
+  /* Duração do fade do flash de tela, lida pelo FX (js/core/fx.js) em
+     FX.reset(). O 180 de lá é só reserva para o caso de o CFG não carregar. */
   CFG.FLASH_FADE_MS = 180;                 // quanto tempo o flash leva para sumir
 
   /* ======================================================================
@@ -387,23 +389,20 @@
     SCALE: [110.00, 130.81, 146.83, 164.81, 196.00],   // A2 C3 D3 E3 G3 (pentatônica menor)
     ROOT: 110.00,                          // A2
     CROSSFADE_MS: 400,                     // Audio.music.setIntensity
-    STEPS: 16                              // passos do arpejo / compasso
+    STEPS: 16                              // NÃO USADO: o scheduler tem 16 passos fixos
   };
-
-  /** BPM = min(164, 112 + nivel*2). */
-  CFG.bpmFor = function (level) {
-    return Math.min(CFG.AUDIO.BPM_MAX, CFG.AUDIO.BPM_BASE + level * CFG.AUDIO.BPM_PER_LEVEL);
-  };
+  // ROOT também NÃO É USADO (a tônica sai de SCALE[0]).
+  // BPM = min(BPM_MAX, BPM_BASE + nivel*BPM_PER_LEVEL): a conta é feita em
+  // audio.js (Music.setLevel) com os três números acima. O CFG.bpmFor que
+  // repetia a conta aqui nunca foi chamado e foi removido em 19/09/2026.
 
   /* ======================================================================
      14. INPUT (§2, §7)
      ====================================================================== */
 
-  /* Ambos são consumidos por Input (js/core/input.js) em tempo de execução:
-     lá o número local existe só como fallback, para o caso de Input rodar
-     antes do config carregar. Quem quiser afrouxar/apertar o toque no celular
-     mexe AQUI e a mudança pega — era isso que estava quebrado quando o
-     input.js tinha os mesmos valores cravados e ignorava o CFG. */
+  /* Lidos pelo Input (js/core/input.js) a cada uso; os números de lá são só
+     reserva para o caso de o CFG não carregar. Até 19/09/2026 o input.js
+     ignorava estes dois e usava os próprios — agora mexer aqui muda o jogo. */
   CFG.INPUT_QUEUE_MAX = 2;                 // fila de até 2 direções (§7)
   CFG.SWIPE_THRESHOLD = 24;                // px para um toque virar swipe (§7)
 
@@ -419,7 +418,11 @@
 
   /* ======================================================================
      16. TEXTOS DA UI (§6)
-     Centralizados para não haver duas grafias do mesmo rótulo no DOM.
+     O ui.js lê daqui: pontos, tamanhoMax, comboMax, setorAlcancado, tempo
+     (tela de fim) e prefixoRecorde (menu). Os demais (recorde, tamanho,
+     setor, pausado, novoRecorde e as três dicas) NÃO SÃO LIDOS: o mesmo texto
+     está escrito no index.html, e é de lá que ele aparece na tela. Mudou um
+     deles? Mude no index.html.
      ====================================================================== */
 
   CFG.TXT = {

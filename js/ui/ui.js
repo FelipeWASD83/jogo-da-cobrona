@@ -472,7 +472,16 @@
     for (var i = 0; i < arr.length; i++) {
       var e = arr[i];
       if (!e || typeof e.pontos !== 'number' || !isFinite(e.pontos)) continue;
-      out.push({ pontos: e.pontos | 0, modo: e.modo || '', data: e.data || '' });
+      // `modoId` ('classico') é o que renderScores usa para achar o nome em
+      // CFG.MODES; `modo` (nome já formatado) fica para registros antigos que
+      // não têm o id. Antes o modoId era descartado aqui e a lista só mostrava
+      // o nome certo porque o `modo` gravado já estava em maiúsculas.
+      out.push({
+        pontos: e.pontos | 0,
+        modoId: typeof e.modoId === 'string' ? e.modoId : '',
+        modo: e.modo || '',
+        data: e.data || ''
+      });
     }
     out.sort(function (a, b) { return b.pontos - a.pontos; });
     return out;

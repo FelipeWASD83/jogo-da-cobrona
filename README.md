@@ -8,8 +8,8 @@ Dê **duplo-clique no `index.html`**. É isso. Funciona offline, direto do `file
 
 Se preferir servir por HTTP (opcional):
 
-```bash
-python3 -m http.server 8777
+```powershell
+python -m http.server 8777
 # abre http://localhost:8777
 ```
 
@@ -19,7 +19,7 @@ python3 -m http.server 8777
 |---|---|
 | `←↑→↓` ou `WASD` | direção |
 | `Espaço` | começar · pausar · continuar |
-| `Enter` | jogar de novo (na tela de fim) |
+| `Enter` | começar (no menu) · jogar de novo (na tela de fim) |
 | `Esc` | voltar ao menu |
 | `P` | pausar |
 | `M` | mudo |
@@ -29,7 +29,7 @@ python3 -m http.server 8777
 ## Modos
 
 - **CLÁSSICO** — a progressão completa, do setor calmo ao caos.
-- **CAÔS** — começa já no setor 3, mais rápido, dois caçadores, pontos ×1,5.
+- **CAÔS** — começa já no SETOR 04 (DOBRA, com muros e portais), mais rápido, dois caçadores, pontos ×1,5.
 - **ZEN** — não morre. Bater custa 3 segmentos. Para desligar o cérebro.
 
 ## O que torna a partida interessante
@@ -37,7 +37,7 @@ python3 -m http.server 8777
 **Combo.** Comer dentro de 2,5 s encadeia. O multiplicador vai até ×8 e o som de comer sobe um
 semitom por elo — dá pra *ouvir* o combo crescendo.
 
-**Comidas.** Normal (10 pts), dourada (50 pts, expira em 6 s) e cristal, que solta um power-up.
+**Comidas.** Normal (10 pts), dourada (50 pts, expira em 6 s) e cristal (25 pts, expira em 9 s), que solta um power-up.
 
 **Power-ups.** `FANTASMA` atravessa o próprio corpo e as paredes · `ÍMÃ` puxa a comida ·
 `TEMPO LENTO` desacelera e dobra os pontos · `ESCUDO` absorve uma morte · `FÚRIA` acelera,
@@ -85,14 +85,36 @@ js/render/background.js starfield, grid, nebulosa
 js/render/renderer.js   sprites e desenho do mundo
 js/ui/ui.js             DOM: HUD, menus, recordes
 js/main.js              boot e loop principal
+testes/                 testes da lógica no Node (node --test)
 ARCHITECTURE.md         o design doc + contrato de API
+CLAUDE.md               estado real do projeto, armadilhas e divergências do doc
 ```
+
+## Testes
+
+Na pasta do projeto:
+
+```powershell
+node --test
+```
+
+Sem dependência nenhuma (o runner vem com o Node). Tem que terminar com `ℹ fail 0`
+(121 testes em 19/09/2026). Detalhes no `CLAUDE.md`.
 
 ## Mexer no jogo
 
 Quase tudo que importa é constante em [`js/game/config.js`](js/game/config.js): velocidade
 (`TICK_BASE`, `TICK_MIN`), tamanho da grade, paleta, tabelas de comida, power-up e setor, e a
-tabela de juice (screenshake, hitstop, contagem de partículas por evento). Dá pra mudar a cara e o
-ritmo do jogo sem tocar em lógica.
+tabela de juice (screenshake, hitstop, contagem de partículas por evento), tremor, flash, fila de
+input e limiar do swipe. Dá pra mudar a cara e o ritmo do jogo sem tocar em lógica.
+
+Desde 19/09/2026 todo valor do `config.js` ou é lido pelo jogo ou está marcado no comentário como
+"NÃO USADO" — antes alguns (fila de input, swipe, tremor, flash) eram ignorados. Duas coisas que
+**não** estão lá: a cor da grade de cada setor (tabela `SECTOR_HUE` em `js/render/background.js`)
+e os textos fixos da tela, como título e dicas (no `index.html`).
+
+Corrigido na mesma data: no modo ZEN, o aviso de troca de setor anunciava muros, portais e caçador
+que o modo não tem (agora diz "ARENA LIMPA"), e a lista de recordes passou a achar o nome do modo
+pelo id gravado, em vez de acertar por acaso.
 
 Os recordes ficam em `localStorage` na chave `cobrona.recordes.v1`.

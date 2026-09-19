@@ -27,6 +27,10 @@
   var CFG = null;
   var FALLBACK = {
     MAX_PARTICLES: 900,
+    MAX_RINGS: 48,
+    MAX_TEXTS: 32,
+    FLASH_FADE_MS: 180,
+    SHAKE: { DECAY: 1.6, MAX_PX: 14, DIVISOR: 25 },
     DEBUG: false,
     PAL: {
       void: '#04010c', deep: '#0b0424', gridLine: '#2a1566', gridGlow: '#4b1fa8',
@@ -38,6 +42,13 @@
     if (!CFG && window.COBRA.CFG) CFG = window.COBRA.CFG;
     return CFG || FALLBACK;
   }
+  /** Número do CFG com reserva: vale o do CFG só se for positivo. */
+  function num(v, reserva) { return (typeof v === 'number' && v > 0) ? v : reserva; }
+  function shakeCfg(k) {
+    var S = cfg().SHAKE;
+    return num(S && S[k], FALLBACK.SHAKE[k]);
+  }
+
   function pal(nome) {
     var p = cfg().PAL || FALLBACK.PAL;
     return p[nome] || FALLBACK.PAL[nome] || '#ffffff';
@@ -69,9 +80,7 @@
   var delays = [];     // pool de bursts agendados (usado pela morte segmentada)
   var nDelays = 0;
 
-  var RING_POOL = 48;
-  var TEXT_POOL = 32;
-  var DELAY_POOL = 96;
+  var DELAY_POOL = 96;   // anéis e textos: tamanho em CFG.MAX_RINGS / MAX_TEXTS
 
   var seq = 0;         // carimbo de nascimento: serve pra achar a MAIS VELHA
 
@@ -84,7 +93,7 @@
 
   var flashA = 0;      // alpha inicial do flash
   var flashT = 0;      // tempo decorrido
-  var flashDur = 180;  // ~180ms, decaindo com easeOutCubic
+  var flashDur = 180;  // CFG.FLASH_FADE_MS, relido em reset(); decai com easeOutCubic
   var flashColor = '#ffffff';
 
   var inited = false;
@@ -135,10 +144,12 @@
     var max = cfg().MAX_PARTICLES || FALLBACK.MAX_PARTICLES;
     parts.length = 0;
     for (var i = 0; i < max; i++) parts.push(novaParticula());
+    var nRingPool = num(cfg().MAX_RINGS, FALLBACK.MAX_RINGS);
+    var nTextPool = num(cfg().MAX_TEXTS, FALLBACK.MAX_TEXTS);
     rings.length = 0;
-    for (var j = 0; j < RING_POOL; j++) rings.push(novoAnel());
+    for (var j = 0; j < nRingPool; j++) rings.push(novoAnel());
     texts.length = 0;
-    for (var k = 0; k < TEXT_POOL; k++) texts.push(novoTexto());
+    for (var k = 0; k < nTextPool; k++) texts.push(novoTexto());
     delays.length = 0;
     for (var d = 0; d < DELAY_POOL; d++) delays.push(novoDelay());
   }
@@ -259,6 +270,7 @@
     hitstopMs = 0;
     chromaMs = 0; chromaDur = 1;
     flashA = 0; flashT = 0;
+    flashDur = num(cfg().FLASH_FADE_MS, FALLBACK.FLASH_FADE_MS);
     seq = 0;
   };
 
@@ -344,9 +356,9 @@
     t.halfW = -1;
   };
 
-  /** n em unidades de trauma (§4): trauma = min(1, trauma + n/25). */
+  /** n em unidades de trauma (§4): trauma = min(1, trauma + n/SHAKE.DIVISOR). */
   FX.shake = function (n) {
-    trauma = clamp(trauma + (n || 0) / 25, 0, 1);
+    trauma = clamp(trauma + (n || 0) / shakeCfg('DIVISOR'), 0, 1);
   };
 
   FX.flash = function (alpha, color) {
@@ -419,11 +431,11 @@
        fortes tremem MUITO e somem rápido, tremores fracos quase não aparecem.
        Isso é o que dá a sensação de "impacto" em vez de "câmera bêbada".      */
     if (trauma > 0) {
-      trauma -= s * 1.6;
+      trauma -= s * shakeCfg('DECAY');
       if (trauma < 0) trauma = 0;
     }
     if (trauma > 0) {
-      var amp = trauma * trauma * 14;
+      var amp = trauma * trauma * shakeCfg('MAX_PX');
       shakeX = (Math.random() * 2 - 1) * amp;
       shakeY = (Math.random() * 2 - 1) * amp;
     } else {

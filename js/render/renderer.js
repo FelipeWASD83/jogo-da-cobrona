@@ -53,13 +53,16 @@
   var HEAD_SIZE   = 30;
   var HEAD_RADIUS = 9;
 
+  // Matizes pré-assadas do corpo e alpha do rastro vêm de CFG.SNAKE
+  // (HUE_SPRITES, TRAIL_ALPHA), lidos no init(). Os números aqui são só a
+  // reserva para o caso de o CFG não ter carregado e têm que bater com ele.
   var HUE_SPRITES = 36;   // 36 matizes (hue = i*10) — 10° de erro é invisível a olho nu
-  var HUE_STEPDEG = 10;
+  var HUE_STEPDEG = 10;   // sempre 360 / HUE_SPRITES
 
   var LINK_W      = 22;   // espessura do retângulo que emenda dois segmentos
   var WAVE_CLAMP  = 1.75; // teto da soma das ondas de engolida (§4)
 
-  var TRAIL_ALPHA = 0.45; // alpha do rastro mais recente da cabeça
+  var TRAIL_ALPHA = 0.45; // alpha do rastro mais recente da cabeça (CFG.SNAKE.TRAIL_ALPHA)
   var HUNT_TRAIL  = 6;    // posições no rastro de cada caçador
   var HUNT_TRAIL_MS = 34; // intervalo de amostragem do rastro do caçador
 
@@ -420,7 +423,8 @@
 
   /** Portal: anel externo entalhado + anel interno fino contrarrotante. */
   function bakePortal() {
-    var cor = pal('violet', '#a855ff');
+    var C = cfg();
+    var cor = (C && C.PORTAL && C.PORTAL.COR) || pal('violet', '#a855ff');
     var c = bakeRing(cor, 12.5, 3.5, 6, 1);
     var g = c.getContext('2d');
     g.globalAlpha = 0.8;
@@ -752,8 +756,8 @@
         var kf = 0.9 * (1 - i / 12);
         hue = hue + (18 - hue) * kf;
       }
-      // Normalizado para 0..359 e mapeado no sprite mais próximo entre os 36 —
-      // o erro máximo é de 5°, imperceptível a olho nu.
+      // Normalizado para 0..359 e mapeado no sprite mais próximo entre os
+      // HUE_SPRITES (36: erro máximo de 5°, imperceptível a olho nu).
       hue = ((hue % 360) + 360) % 360;
       var idx = Math.round(hue / HUE_STEPDEG) % HUE_SPRITES;
 
@@ -962,6 +966,13 @@
     H = (C && C.H) || 640;
     CELL = (C && C.CELL) || 32;
     HALF = CELL * 0.5;
+
+    var SN = C && C.SNAKE;
+    if (SN && SN.HUE_SPRITES >= 1) {
+      HUE_SPRITES = SN.HUE_SPRITES | 0;
+      HUE_STEPDEG = 360 / HUE_SPRITES;
+    }
+    if (SN && typeof SN.TRAIL_ALPHA === 'number' && SN.TRAIL_ALPHA >= 0) TRAIL_ALPHA = SN.TRAIL_ALPHA;
 
     bakeSprites();
     ensureHuntTrails();

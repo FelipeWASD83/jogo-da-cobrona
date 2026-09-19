@@ -1039,14 +1039,20 @@
     ensureHunters(desiredHunters());
   }
 
-  /** Subtítulo do banner: o que MUDOU neste setor, em português. */
+  /** Subtítulo do banner: o que MUDOU neste setor, em português.
+      Descreve a arena que o jogador vai de fato receber: o modo pode
+      desligar muros e portais (arenaOpts) e caçadores (desiredHunters) —
+      no ZEN o banner anunciava "MUROS INTERNOS · PORTAIS · 1 CAÇADOR" numa
+      arena vazia. Chamado depois de Game.sector já ter virado o setor novo. */
   function sectorSub(info) {
+    var semArena = !!(modeCfg && modeCfg.muros === false);
     var partes = [];
-    if (!info.muros) partes.push('ARENA LIMPA');
+    if (!info.muros || semArena) partes.push('ARENA LIMPA');
     else partes.push('MUROS INTERNOS');
-    if (info.portais) partes.push('PORTAIS');
-    if (info.cacadores > 0) {
-      partes.push(info.cacadores > 1 ? info.cacadores + ' CAÇADORES' : '1 CAÇADOR');
+    if (info.portais && !semArena) partes.push('PORTAIS');
+    var n = desiredHunters();
+    if (n > 0) {
+      partes.push(n > 1 ? n + ' CAÇADORES' : '1 CAÇADOR');
     }
     return partes.join(' · ');
   }
