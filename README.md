@@ -118,3 +118,7 @@ que o modo não tem (agora diz "ARENA LIMPA"), e a lista de recordes passou a ac
 pelo id gravado, em vez de acertar por acaso.
 
 Os recordes ficam em `localStorage` na chave `cobrona.recordes.v1`.
+
+## Licença
+
+Código sob a licença MIT (arquivo `LICENSE`).
